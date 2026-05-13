@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 普通化学考核方式投票 | 华中科技大学未来技术学院</title>
+
+    <!-- Supabase JS 客户端 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <!-- Chart.js CDN（仅管理面板使用） -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #0a0a14;
+            --surface: #12122a;
+            --surface-light: #1a1a3e;
+            --gold: #f0c060;
+            --gold-bright: #ffd780;
+            --closed-color: #4a6cf7;
+            --closed-glow: #4a6cf766;
+            --open-color: #2ecc71;
+            --open-glow: #2ecc7166;
+            --text: #e0e0f0;
+            --text-secondary: #a0a0c0;
+            --danger: #e74c3c;
+            --border: #2a2a50;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --font-mono: 'SF Mono', 'Cascadia Code', 'Consolas', 'Monaco', monospace;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', -apple-system, sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .particles-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+        .particle { position: absolute; border-radius: 50%; animation: floatUp var(--dur) linear infinite; opacity: 0; pointer-events: none; }
+        @keyframes floatUp {
+            0% { transform: translateY(105vh) scale(0); opacity: 0; }
+            10% { opacity: var(--opacity); }
+            90% { opacity: var(--opacity); }
+            100% { transform: translateY(-10vh) scale(1.5); opacity: 0; }
+        }
+        .main-container { position: relative; z-index: 1; max-width: 700px; margin: 0 auto; padding: 20px 16px 40px; min-height: 100vh; display: flex; flex-direction: column; }
+        .header { text-align: center; padding: 20px 0 10px; }
+        .header-badge { display: inline-block; background: var(--surface-light); border: 1px solid var(--border); border-radius: 30px; padding: 6px 18px; font-size: 0.8rem; color: var(--text-secondary); letter-spacing: 0.05em; margin-bottom: 12px; backdrop-filter: blur(10px); }
+        .header-badge .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4ade80; margin-right: 6px; animation: pulse-dot 2s ease-in-out infinite; }
+        @keyframes pulse-dot { 0%,100% { box-shadow: 0 0 4px #4ade80; } 50% { box-shadow: 0 0 14px #4ade80, 0 0 24px #4ade8066; } }
+        .header h1 { font-size: 1.8rem; font-weight: 800; background: linear-gradient(135deg, #e0e0ff 0%, #f0c060 40%, #ffd780 70%, #e0e0ff 100%); background-size: 200% 200%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: shimmer 4s ease-in-out infinite; margin-bottom: 6px; letter-spacing: 0.02em; }
+        @keyframes shimmer { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+        .header .subtitle { font-size: 0.9rem; color: var(--text-secondary); letter-spacing: 0.04em; }
+        .header .chemistry-icon { font-size: 2.4rem; display: block; margin-bottom: 4px; animation: bounce-icon 2s ease-in-out infinite; }
+        @keyframes bounce-icon { 0%,100% { transform: translateY(0); } 30% { transform: translateY(-14px); } 50% { transform: translateY(0); } 70% { transform: translateY(-6px); } 85% { transform: translateY(0); } }
+        .live-ticker { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 14px; margin: 10px 0 18px; display: flex; align-items: center; gap: 10px; font-size: 0.78rem; color: var(--text-secondary); overflow: hidden; position: relative; }
+        .live-ticker .live-dot { flex-shrink: 0; width: 9px; height: 9px; border-radius: 50%; background: #ff4757; animation: blink 0.8s ease-in-out infinite; }
+        @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+        .live-ticker .ticker-text { white-space: nowrap; overflow: hidden; animation: scroll-left 12s linear infinite; }
+        @keyframes scroll-left { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+        .vote-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+        @media (max-width: 500px) { .vote-cards { grid-template-columns: 1fr; gap: 10px; } .header h1 { font-size: 1.4rem; } }
+        .vote-card { background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius); padding: 20px 16px; text-align: center; cursor: pointer; transition: var(--transition); position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 10px; -webkit-tap-highlight-color: transparent; outline: none; }
+        .vote-card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+        .vote-card:active { transform: scale(0.96); transition: 0.1s ease; }
+        .vote-card.closed { border-color: #4a6cf744; }
+        .vote-card.closed:hover { border-color: var(--closed-color); box-shadow: 0 0 30px var(--closed-glow), 0 12px 40px rgba(0,0,0,0.4); }
+        .vote-card.open { border-color: #2ecc7144; }
+        .vote-card.open:hover { border-color: var(--open-color); box-shadow: 0 0 30px var(--open-glow), 0 12px 40px rgba(0,0,0,0.4); }
+        .vote-card .card-emoji { font-size: 2.8rem; transition: var(--transition); }
+        .vote-card:hover .card-emoji { transform: scale(1.15) rotate(-5deg); }
+        .vote-card .card-label { font-weight: 700; font-size: 1.05rem; letter-spacing: 0.03em; }
+        .vote-card .card-desc { font-size: 0.75rem; color: var(--text-secondary); }
+        .vote-card .card-vote-count { font-family: var(--font-mono); font-size: 2rem; font-weight: 900; letter-spacing: -0.02em; transition: var(--transition); }
+        .vote-card.closed .card-vote-count { color: #6b8aff; }
+        .vote-card.open .card-vote-count { color: #4ade80; }
+        .ripple { position: absolute; border-radius: 50%; pointer-events: none; animation: ripple-out 0.7s ease-out forwards; }
+        .vote-card.closed .ripple { background: var(--closed-glow); }
+        .vote-card.open .ripple { background: var(--open-glow); }
+        @keyframes ripple-out { 0% { width:20px; height:20px; opacity:1; transform: translate(-50%,-50%) scale(1); } 100% { width:400px; height:400px; opacity:0; transform: translate(-50%,-50%) scale(8); } }
+        .vote-buttons-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+        @media (max-width:500px) { .vote-buttons-row { grid-template-columns: 1fr; gap:10px; } }
+        .btn-vote { padding: 16px 20px; border-radius: var(--radius); font-size: 1.05rem; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; border: none; color: #fff; transition: var(--transition); position: relative; overflow: hidden; font-family: inherit; -webkit-tap-highlight-color: transparent; outline: none; }
+        .btn-vote:active { transform: scale(0.94); transition: 0.08s ease; }
+        .btn-closed { background: linear-gradient(135deg, #3b5de7, #5b7df7); box-shadow: 0 6px 24px #4a6cf744; }
+        .btn-closed:hover { box-shadow: 0 10px 36px #4a6cf788; transform: translateY(-2px); }
+        .btn-open { background: linear-gradient(135deg, #1ea85a, #2ecc71); box-shadow: 0 6px 24px #2ecc7144; }
+        .btn-open:hover { box-shadow: 0 10px 36px #2ecc7188; transform: translateY(-2px); }
+        .btn-vote .btn-icon { font-size: 1.3rem; margin-right: 6px; vertical-align: middle; }
+        .results-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 16px; }
+        .results-section h3 { text-align: center; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 14px; }
+        .result-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; font-size: 0.85rem; }
+        .result-bar-row .bar-label { width: 50px; text-align: right; font-weight: 600; flex-shrink: 0; font-size: 0.8rem; }
+        .result-bar-row .bar-track { flex: 1; height: 28px; background: var(--surface-light); border-radius: 14px; overflow: hidden; position: relative; border: 1px solid var(--border); }
+        .result-bar-row .bar-fill { height: 100%; border-radius: 14px; transition: width 0.5s cubic-bezier(0.4,0,0.2,1); position: relative; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; font-weight: 700; font-size: 0.78rem; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.4); min-width: 40px; }
+        .bar-fill.closed-fill { background: linear-gradient(90deg, #3b5de7, #6b8aff); }
+        .bar-fill.open-fill { background: linear-gradient(90deg, #1ea85a, #4ade80); }
+        .result-bar-row .bar-count { width: 60px; font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem; flex-shrink: 0; }
+        .personal-stats { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 0.8rem; color: var(--text-secondary); }
+        .personal-stats .stat-item { display: flex; align-items: center; gap: 6px; }
+        .personal-stats .stat-value { font-weight: 700; color: var(--gold-bright); font-family: var(--font-mono); font-size: 1.1rem; }
+        .personal-stats .combo-badge { background: #ff4757; color: #fff; padding: 4px 10px; border-radius: 20px; font-weight: 700; font-size: 0.75rem; animation: pulse-combo 0.6s ease-in-out infinite; display: none; }
+        .personal-stats .combo-badge.active { display: inline-block; }
+        @keyframes pulse-combo { 0%,100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+        .floating-notification { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-120px); background: var(--surface-light); border: 1px solid var(--gold); color: var(--gold-bright); padding: 10px 20px; border-radius: 30px; font-weight: 700; font-size: 0.85rem; z-index: 1000; pointer-events: none; transition: transform 0.4s cubic-bezier(0.175,0.885,0.32,1.275); box-shadow: 0 8px 30px rgba(0,0,0,0.5); letter-spacing: 0.03em; }
+        .floating-notification.show { transform: translateX(-50%) translateY(0); }
+        .admin-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+        .admin-overlay.active { opacity: 1; pointer-events: all; }
+        .admin-panel { background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius); padding: 24px 20px; max-width: 600px; width: 95%; max-height: 85vh; overflow-y: auto; position: relative; color: var(--text); }
+        .admin-panel h2 { text-align: center; font-size: 1.3rem; margin-bottom: 16px; letter-spacing: 0.04em; }
+        .admin-panel .close-btn { position: absolute; top: 12px; right: 16px; background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer; transition: var(--transition); }
+        .admin-panel .close-btn:hover { color: #fff; }
+        .admin-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .admin-stat-box { background: var(--surface-light); border-radius: var(--radius-sm); padding: 14px; text-align: center; }
+        .admin-stat-box .stat-num { font-family: var(--font-mono); font-size: 1.8rem; font-weight: 900; }
+        .admin-stat-box .stat-label { font-size: 0.7rem; color: var(--text-secondary); letter-spacing: 0.05em; margin-top: 2px; }
+        .admin-section-title { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); margin: 16px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+        .admin-vote-list { max-height: 200px; overflow-y: auto; font-size: 0.75rem; font-family: var(--font-mono); }
+        .admin-vote-list .vote-row { display: flex; justify-content: space-between; padding: 5px 8px; border-bottom: 1px solid #ffffff08; }
+        .admin-vote-list .vote-row .v-option { font-weight: 600; }
+        .admin-btn { display: inline-block; padding: 10px 20px; border-radius: 25px; border: 1px solid var(--border); background: var(--surface-light); color: var(--text); cursor: pointer; font-family: inherit; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.03em; transition: var(--transition); margin: 4px; }
+        .admin-btn:hover { border-color: #fff; background: #ffffff15; }
+        .admin-btn.danger { border-color: #e74c3c55; color: #e74c3c; }
+        .admin-btn.danger:hover { border-color: #e74c3c; background: #e74c3c20; }
+        .admin-chart-container { height: 180px; margin: 10px 0; }
+        .admin-password-input { width: 100%; padding: 12px 16px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--surface-light); color: #fff; font-size: 1rem; font-family: inherit; letter-spacing: 0.05em; text-align: center; outline: none; transition: var(--transition); }
+        .admin-password-input:focus { border-color: var(--gold); box-shadow: 0 0 20px #f0c06033; }
+        .footer { text-align: center; padding: 16px 0; font-size: 0.7rem; color: #555; letter-spacing: 0.04em; margin-top: auto; }
+        .footer .secret-entry { color: #333; cursor: default; transition: color 0.3s; display: inline-block; }
+        .footer .secret-entry:hover { color: #666; }
+        @media (max-width:400px) {
+            .header h1 { font-size: 1.2rem; }
+            .vote-card .card-emoji { font-size: 2rem; }
+            .vote-card .card-vote-count { font-size: 1.4rem; }
+            .btn-vote { font-size: 0.9rem; padding: 14px 16px; }
+            .result-bar-row .bar-track { height: 22px; }
+            .result-bar-row { gap: 6px; }
+            .result-bar-row .bar-label { width: 36px; font-size: 0.7rem; }
+            .result-bar-row .bar-count { width: 44px; font-size: 0.7rem; }
+        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <!-- 背景粒子 -->
+    <div class="particles-container" id="particlesContainer"></div>
+
+    <!-- 浮动通知 -->
+    <div class="floating-notification" id="floatingNotification"></div>
+
+    <!-- 主容器 -->
+    <div class="main-container">
+        <header class="header">
+            <span class="chemistry-icon">⚗️</span>
+            <div class="header-badge"><span class="dot"></span> 投票进行中 · 实时更新</div>
+            <h1>普通化学 · 考核方式投票</h1>
+            <p class="subtitle">华中科技大学 · 未来技术学院</p>
+            <p style="font-size:0.7rem;color:#666;margin-top:4px;">🤝 投票不限次数，欢迎为心仪选项疯狂打call！</p>
+        </header>
+
+        <div class="live-ticker">
+            <span class="live-dot"></span>
+            <span class="ticker-text" id="tickerText">等待投票中… 快来投出你的一票吧！🧪</span>
+        </div>
+
+        <div class="vote-cards">
+            <div class="vote-card closed" id="cardClosed" onclick="castVote('closed', event)">
+                <span class="card-emoji">📝</span>
+                <span class="card-label">闭卷考试</span>
+                <span class="card-desc">传统严谨 · 考验真功夫</span>
+                <span class="card-vote-count" id="countClosed">0</span>
+                <span style="font-size:0.7rem;color:var(--text-secondary);">票</span>
+            </div>
+            <div class="vote-card open" id="cardOpen" onclick="castVote('open', event)">
+                <span class="card-emoji">📖</span>
+                <span class="card-label">开卷考试</span>
+                <span class="card-desc">开放灵活 · 注重理解力</span>
+                <span class="card-vote-count" id="countOpen">0</span>
+                <span style="font-size:0.7rem;color:var(--text-secondary);">票</span>
+            </div>
+        </div>
+
+        <div class="vote-buttons-row">
+            <button class="btn-vote btn-closed" onclick="castVote('closed', event)">
+                <span class="btn-icon">📝</span> 投闭卷一票
+            </button>
+            <button class="btn-vote btn-open" onclick="castVote('open', event)">
+                <span class="btn-icon">📖</span> 投开卷一票
+            </button>
+        </div>
+
+        <section class="results-section">
+            <h3>📊 实时战况</h3>
+            <div class="result-bar-row">
+                <span class="bar-label">📝 闭卷</span>
+                <div class="bar-track"><div class="bar-fill closed-fill" id="barClosed" style="width:50%;">50%</div></div>
+                <span class="bar-count" id="barCountClosed">0 票</span>
+            </div>
+            <div class="result-bar-row">
+                <span class="bar-label">📖 开卷</span>
+                <div class="bar-track"><div class="bar-fill open-fill" id="barOpen" style="width:50%;">50%</div></div>
+                <span class="bar-count" id="barCountOpen">0 票</span>
+            </div>
+            <p style="text-align:center;font-size:0.75rem;color:var(--text-secondary);margin-top:8px;">
+                总投票数：<strong id="totalVotes" style="color:var(--gold-bright);">0</strong>
+            </p>
+        </section>
+
+        <div class="personal-stats" id="personalStats">
+            <div class="stat-item">👤 你已投票：<span class="stat-value" id="myTotalVotes">0</span> 次</div>
+            <div class="stat-item">📝 闭卷：<span class="stat-value" id="myClosedVotes">0</span></div>
+            <div class="stat-item">📖 开卷：<span class="stat-value" id="myOpenVotes">0</span></div>
+            <span class="combo-badge" id="comboBadge">🔥 连击!</span>
+        </div>
+
+        <footer class="footer">
+            <p>华中科技大学 未来技术学院</p>
+            <p>Designed by DeepSeek</p>
+            <p><span class="secret-entry" id="secretEntry" title="管理入口">⚙️</span></p>
+        </footer>
+    </div>
+
+    <div class="admin-overlay" id="adminOverlay">
+        <div class="admin-panel" id="adminPanel">
+            <button class="close-btn" onclick="closeAdmin()">✕</button>
+            <div id="adminContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        //  🔧 Supabase 配置 - 请替换为你的 Supabase 项目信息
+        // ============================================================
+        const SUPABASE_URL = 'https://rqbcxgqzhozcyrnissjo.supabase.co';  
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxYmN4Z3F6aG96Y3lybmlzc2pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2NzU0MjEsImV4cCI6MjA5NDI1MTQyMX0.0Il0-ZMHc9dEAMENveMAmXq1bwO98GzG2kjHdMsAIS0'; 
+
+        // 管理密码（可自定义）
+        const ADMIN_PASSWORD = 'hustsft2502';
+
+        let supabase;
+        let supabaseAvailable = false;
+
+        try {
+            if (SUPABASE_URL.includes('your-project-id') || SUPABASE_ANON_KEY.includes('placeholder')) {
+                console.warn('⚠️ 请先配置 Supabase！');
+                supabaseAvailable = false;
+            } else {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                supabaseAvailable = true;
+                console.log('✅ Supabase 客户端已初始化');
+            }
+        } catch (e) {
+            console.error('❌ Supabase 初始化失败:', e);
+            supabaseAvailable = false;
+        }
+
+        let voteCounts = { closed: 0, open: 0 };
+        let totalVotes = 0;
+        let myStats = { total: 0, closed: 0, open: 0 };
+        let sessionId;
+        let comboTimer = null;
+        let comboCount = 0;
+        let recentVotesLog = [];
+        let adminChartInstance = null;
+
+        function getOrCreateSessionId() {
+            let sid = localStorage.getItem('chem_vote_session_id');
+            if (!sid) {
+                sid = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
+                localStorage.setItem('chem_vote_session_id', sid);
+            }
+            return sid;
+        }
+        sessionId = getOrCreateSessionId();
+
+        function loadMyStats() {
+            const saved = localStorage.getItem('chem_vote_my_stats');
+            if (saved) { try { myStats = JSON.parse(saved); } catch(e) { myStats = {total:0,closed:0,open:0}; } }
+        }
+        function saveMyStats() { localStorage.setItem('chem_vote_my_stats', JSON.stringify(myStats)); }
+        function updateMyStatsDisplay() {
+            document.getElementById('myTotalVotes').textContent = myStats.total;
+            document.getElementById('myClosedVotes').textContent = myStats.closed;
+            document.getElementById('myOpenVotes').textContent = myStats.open;
+            const badge = document.getElementById('comboBadge');
+            if (comboCount >= 5) { badge.classList.add('active'); badge.textContent = '🔥 ' + comboCount + '连击!'; }
+            else { badge.classList.remove('active'); }
+        }
+
+        async function loadVoteCounts() {
+            if (!supabaseAvailable) {
+                const localData = localStorage.getItem('chem_vote_local_data');
+                if (localData) {
+                    try {
+                        const parsed = JSON.parse(localData);
+                        voteCounts = parsed.voteCounts || {closed:0,open:0};
+                        totalVotes = voteCounts.closed + voteCounts.open;
+                        recentVotesLog = parsed.recentVotesLog || [];
+                    } catch(e) {}
+                }
+                updateUI(); return;
+            }
+            try {
+                const { data, error } = await supabase.from('votes').select('option, created_at').order('created_at', {ascending:false}).limit(5000);
+                if (error) throw error;
+                voteCounts = {closed:0, open:0};
+                recentVotesLog = [];
+                if (data) {
+                    data.forEach(row => { if(row.option==='closed') voteCounts.closed++; else if(row.option==='open') voteCounts.open++; });
+                    recentVotesLog = data.slice(0,20).map(row => ({option:row.option, time:row.created_at}));
+                }
+                totalVotes = voteCounts.closed + voteCounts.open;
+                updateUI();
+            } catch(e) {
+                console.error('❌ 加载投票数据失败:', e);
+                const localData = localStorage.getItem('chem_vote_local_data');
+                if (localData) { try { const p=JSON.parse(localData); voteCounts=p.voteCounts||{closed:0,open:0}; totalVotes=voteCounts.closed+voteCounts.open; recentVotesLog=p.recentVotesLog||[]; } catch(e2){} }
+                updateUI();
+            }
+        }
+
+        function subscribeToRealtime() {
+            if (!supabaseAvailable) return;
+            try {
+                const channel = supabase.channel('votes-realtime')
+                    .on('postgres_changes', {event:'INSERT', schema:'public', table:'votes'}, (payload) => {
+                        const newVote = payload.new;
+                        if (newVote && newVote.option) {
+                            if (newVote.option==='closed') voteCounts.closed++; else if (newVote.option==='open') voteCounts.open++;
+                            totalVotes = voteCounts.closed + voteCounts.open;
+                            recentVotesLog.unshift({option:newVote.option, time:newVote.created_at||new Date().toISOString()});
+                            if (recentVotesLog.length>50) recentVotesLog.pop();
+                            updateUI(); saveLocalBackup();
+                        }
+                    }).subscribe((status) => {
+                        if (status==='SUBSCRIBED') console.log('🔔 实时订阅已激活');
+                        else if (status==='CHANNEL_ERROR') { console.warn('⚠️ 实时订阅出错'); startPolling(); }
+                    });
+                setTimeout(() => { if (channel.state!=='joined') startPolling(); }, 5000);
+            } catch(e) { startPolling(); }
+        }
+
+        let pollingInterval=null;
+        function startPolling() {
+            if(pollingInterval) return;
+            pollingInterval = setInterval(async ()=>{ await loadVoteCounts(); }, 5000);
+        }
+        function saveLocalBackup() {
+            localStorage.setItem('chem_vote_local_data', JSON.stringify({voteCounts, recentVotesLog, lastUpdated:Date.now()}));
+        }
+
+        async function castVote(option, event) {
+            if(event) { event.preventDefault(); event.stopPropagation(); }
+            if(event && event.target) createRipple(event, option);
+            myStats.total++; if(option==='closed') myStats.closed++; else myStats.open++;
+            saveMyStats(); updateMyStatsDisplay();
+            comboCount++; if(comboTimer) clearTimeout(comboTimer);
+            comboTimer = setTimeout(()=>{ comboCount=0; updateMyStatsDisplay(); },2000);
+            updateMyStatsDisplay();
+
+            if(option==='closed') voteCounts.closed++; else voteCounts.open++;
+            totalVotes = voteCounts.closed + voteCounts.open;
+            recentVotesLog.unshift({option:option, time:new Date().toISOString()});
+            if(recentVotesLog.length>50) recentVotesLog.pop();
+            updateUI(); saveLocalBackup();
+
+            const label = option==='closed'?'闭卷考试':'开卷考试';
+            let msg = `📝 你投了「${label}」一票！`;
+            if(comboCount>=10) msg=`🔥 ${comboCount}连击！你投了「${label}」！`;
+            else if(comboCount>=5) msg=`⚡ ${comboCount}连击！「${label}」+1票！`;
+            showNotification(msg);
+
+            if(supabaseAvailable) {
+                try {
+                    const { error } = await supabase.from('votes').insert([{option:option, session_id:sessionId}]);
+                    if(error) { console.error('❌ 投票提交失败:',error); if(option==='closed') voteCounts.closed--; else voteCounts.open--; totalVotes=voteCounts.closed+voteCounts.open; updateUI(); showNotification('⚠️ 投票提交失败'); }
+                } catch(e) { console.error('❌ 投票请求异常:',e); if(option==='closed') voteCounts.closed--; else voteCounts.open--; totalVotes=voteCounts.closed+voteCounts.open; updateUI(); showNotification('⚠️ 网络异常'); }
+            } else { saveLocalBackup(); }
+        }
+
+        function createRipple(event, option) {
+            const target = event.currentTarget || event.target;
+            const ripple = document.createElement('span'); ripple.className='ripple';
+            const rect = target.getBoundingClientRect(); const size = Math.max(rect.width, rect.height);
+            ripple.style.width=size+'px'; ripple.style.height=size+'px';
+            ripple.style.left=(event.clientX||rect.left+rect.width/2)-rect.left+'px';
+            ripple.style.top=(event.clientY||rect.top+rect.height/2)-rect.top+'px';
+            ripple.style.position='absolute'; target.style.position=target.style.position||'relative'; target.style.overflow='hidden';
+            target.appendChild(ripple); ripple.addEventListener('animationend', ()=>ripple.remove());
+        }
+
+        function showNotification(message) {
+            const notif = document.getElementById('floatingNotification'); notif.textContent=message; notif.classList.add('show');
+            clearTimeout(notif._timeout); notif._timeout = setTimeout(()=>{ notif.classList.remove('show'); },1800);
+        }
+
+        function updateUI() {
+            const closed=voteCounts.closed, open=voteCounts.open, total=closed+open; totalVotes=total;
+            document.getElementById('countClosed').textContent=closed; document.getElementById('countOpen').textContent=open;
+            document.getElementById('totalVotes').textContent=total;
+            const closedPct = total>0 ? Math.round((closed/total)*100) : 50;
+            const openPct = total>0 ? Math.round((open/total)*100) : 50;
+            const barClosed=document.getElementById('barClosed'); const barOpen=document.getElementById('barOpen');
+            barClosed.style.width=(total>0?closedPct:50)+'%'; barClosed.textContent=(total>0?closedPct:50)+'%';
+            barOpen.style.width=(total>0?openPct:50)+'%'; barOpen.textContent=(total>0?openPct:50)+'%';
+            document.getElementById('barCountClosed').textContent=closed+' 票';
+            document.getElementById('barCountOpen').textContent=open+' 票';
+            updateTicker(); updateMyStatsDisplay();
+        }
+
+        function updateTicker() {
+            const tickerText = document.getElementById('tickerText');
+            if(recentVotesLog.length===0) { tickerText.textContent='等待投票中… 快来投出你的一票吧！🧪'; return; }
+            const latest = recentVotesLog.slice(0,8);
+            const parts = latest.map(v=>{
+                const emoji = v.option==='closed'?'📝':'📖'; const label = v.option==='closed'?'闭卷':'开卷';
+                const timeStr = v.time ? new Date(v.time).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '刚刚';
+                return `${emoji}有人投了「${label}」(${timeStr})`;
+            });
+            tickerText.textContent = parts.join('  ·  ') + '  ·  持续投票中…';
+        }
+
+        function openAdmin() {
+            const overlay=document.getElementById('adminOverlay'); const adminContent=document.getElementById('adminContent');
+            adminContent.innerHTML = `
+            <h2>🔐 管理员验证</h2>
+            <p style="text-align:center;color:var(--text-secondary);font-size:0.8rem;margin-bottom:12px;">请输入管理密码以继续</p>
+            <input type="password" class="admin-password-input" id="adminPasswordInput" placeholder="输入管理密码..." autocomplete="off" onkeydown="if(event.key==='Enter')verifyAdmin()">
+            <div style="text-align:center;margin-top:12px;"><button class="admin-btn" onclick="verifyAdmin()">🔑 验证</button><button class="admin-btn" onclick="closeAdmin()">取消</button></div>
+            <p style="text-align:center;font-size:0.65rem;color:#555;margin-top:10px;">默认密码：chemistry2024</p>`;
+            overlay.classList.add('active'); setTimeout(()=>{ document.getElementById('adminPasswordInput')?.focus(); },200);
+        }
+
+        function verifyAdmin() {
+            const input=document.getElementById('adminPasswordInput'); if(!input) return;
+            if(input.value===ADMIN_PASSWORD) showAdminPanel();
+            else { showNotification('❌ 密码错误'); input.value=''; input.focus(); input.style.borderColor='#e74c3c'; setTimeout(()=>{input.style.borderColor='var(--border)';},800); }
+        }
+
+        function showAdminPanel() {
+            const adminContent=document.getElementById('adminContent');
+            const closed=voteCounts.closed, open=voteCounts.open, total=closed+open;
+            const closedPct=total>0?(closed/total*100).toFixed(1):'50.0', openPct=total>0?(open/total*100).toFixed(1):'50.0';
+            adminContent.innerHTML = `
+            <h2>🛡️ 管理面板</h2><p style="text-align:center;font-size:0.7rem;color:var(--text-secondary);">Supabase 云端数据 · 实时同步</p>
+            <div class="admin-stats-grid">
+              <div class="admin-stat-box"><div class="stat-num" style="color:#6b8aff;">${closed}</div><div class="stat-label">📝 闭卷考试票数</div></div>
+              <div class="admin-stat-box"><div class="stat-num" style="color:#4ade80;">${open}</div><div class="stat-label">📖 开卷考试票数</div></div>
+              <div class="admin-stat-box"><div class="stat-num" style="color:var(--gold-bright);">${total}</div><div class="stat-label">📊 总投票数</div></div>
+              <div class="admin-stat-box"><div class="stat-num" style="color:#ccc;">${closedPct}% / ${openPct}%</div><div class="stat-label">📈 比例</div></div>
+            </div>
+            <div class="admin-section-title">📈 投票趋势</div><div class="admin-chart-container"><canvas id="adminChart"></canvas></div>
+            <div class="admin-section-title">📋 最近记录</div>
+            <div class="admin-vote-list" id="adminVoteList">${recentVotesLog.length===0?'<p style="text-align:center;color:#555;">暂无记录</p>':recentVotesLog.slice(0,30).map(v=>{const emoji=v.option==='closed'?'📝':'📖';const label=v.option==='closed'?'闭卷考试':'开卷考试';const timeStr=v.time?new Date(v.time).toLocaleString('zh-CN'):'未知';return `<div class="vote-row"><span>${emoji} ${label}</span><span style="color:#888;">${timeStr}</span></div>`;}).join('')}</div>
+            <div style="text-align:center;margin-top:16px;">
+              <button class="admin-btn" onclick="exportCSV()">📥 导出 CSV</button>
+              <button class="admin-btn" onclick="refreshAdminData()">🔄 刷新</button>
+              <button class="admin-btn danger" onclick="resetVotes()">⚠️ 重置投票</button>
+              <button class="admin-btn" onclick="closeAdmin()">关闭</button>
+            </div>`;
+            setTimeout(()=>renderAdminChart(),300);
+        }
+
+        function renderAdminChart() {
+            const canvas=document.getElementById('adminChart'); if(!canvas) return;
+            if(adminChartInstance) adminChartInstance.destroy();
+            const labels=[], closedData=[], openData=[]; let cumClosed=0, cumOpen=0;
+            const reversed=[...recentVotesLog].reverse(); const step=Math.max(1,Math.floor(reversed.length/20));
+            for(let i=0;i<reversed.length;i+=step) {
+                const slice=reversed.slice(i,i+step); slice.forEach(v=>{if(v.option==='closed') cumClosed++; else cumOpen++;});
+                const timeStr=reversed[i]?.time?new Date(reversed[i].time).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}):'#'+i;
+                labels.push(timeStr); closedData.push(cumClosed); openData.push(cumOpen);
+            }
+            if(labels.length===0){labels.push('暂无');closedData.push(0);openData.push(0);}
+            adminChartInstance = new Chart(canvas,{
+                type:'line', data:{labels:labels, datasets:[
+                    {label:'📝 闭卷累计',data:closedData,borderColor:'#6b8aff',backgroundColor:'#6b8aff22',fill:true,tension:0.3,pointRadius:1,borderWidth:2},
+                    {label:'📖 开卷累计',data:openData,borderColor:'#4ade80',backgroundColor:'#4ade8022',fill:true,tension:0.3,pointRadius:1,borderWidth:2}
+                ]},
+                options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#ccc',font:{size:10}},position:'bottom'}},scales:{x:{ticks:{color:'#888',font:{size:9},maxTicksLimit:10},grid:{color:'#ffffff10'}},y:{ticks:{color:'#888',font:{size:9}},grid:{color:'#ffffff10'},beginAtZero:true}}}
+            });
+        }
+
+        function refreshAdminData() { loadVoteCounts().then(()=>{ showAdminPanel(); showNotification('✅ 数据已刷新'); }); }
+        function exportCSV() {
+            const rows=[['选项','时间']]; recentVotesLog.forEach(v=>{ rows.push([v.option==='closed'?'闭卷考试':'开卷考试', v.time||'']); });
+            const csvContent=rows.map(r=>r.join(',')).join('\n'); const blob=new Blob(['\uFEFF'+csvContent],{type:'text/csv;charset=utf-8;'});
+            const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download='化学投票_'+new Date().toISOString().slice(0,10)+'.csv'; link.click(); URL.revokeObjectURL(url); showNotification('📥 CSV 已导出！');
+        }
+
+        async function resetVotes() {
+            if(!confirm('⚠️ 确定要重置所有投票数据吗？此操作不可恢复！')) return;
+            if(!confirm('🔴 最终确认：清空所有投票记录？')) return;
+            if(supabaseAvailable) {
+                try { const {error}=await supabase.from('votes').delete().neq('id',-1);
+                    if(error) { alert('删除失败！可能 RLS 策略限制，请前往 Supabase Dashboard 手动清空。\n错误:'+error.message); return; }
+                    voteCounts={closed:0,open:0}; totalVotes=0; recentVotesLog=[]; updateUI(); saveLocalBackup(); showAdminPanel(); showNotification('✅ 已重置');
+                } catch(e) { alert('重置异常！请手动清空。'); }
+            } else { voteCounts={closed:0,open:0}; totalVotes=0; recentVotesLog=[]; localStorage.removeItem('chem_vote_local_data'); updateUI(); saveLocalBackup(); showAdminPanel(); showNotification('✅ 本地数据已重置'); }
+        }
+
+        function closeAdmin() { document.getElementById('adminOverlay').classList.remove('active'); if(adminChartInstance){adminChartInstance.destroy();adminChartInstance=null;} }
+        document.getElementById('adminOverlay').addEventListener('click',function(e){if(e.target===this) closeAdmin();});
+        document.addEventListener('keydown',function(e){if(e.key==='Escape'){if(document.getElementById('adminOverlay').classList.contains('active'))closeAdmin();}});
+        document.getElementById('secretEntry').addEventListener('click',function(e){e.preventDefault(); openAdmin();});
+        if(window.location.hash==='#admin'){setTimeout(()=>openAdmin(),500);}
+
+        function createParticles() {
+            const container=document.getElementById('particlesContainer');
+            const symbols=['⚛️','🔬','🧪','⚗️','💊','🔭','📐','🧬','◈','◇','○','●','·'];
+            const colors=['#4a6cf7','#2ecc71','#f0c060','#ff6b8a','#a78bfa','#4ade80','#6b8aff','#ffffff'];
+            for(let i=0;i<35;i++){
+                const p=document.createElement('div'); p.className='particle';
+                const isSymbol=Math.random()<0.25;
+                if(isSymbol){ p.textContent=symbols[Math.floor(Math.random()*symbols.length)]; p.style.fontSize=(10+Math.random()*16)+'px'; }
+                else { p.style.width=(3+Math.random()*8)+'px'; p.style.height=p.style.width; p.style.background=colors[Math.floor(Math.random()*colors.length)]; p.style.boxShadow='0 0 '+(4+Math.random()*10)+'px '+p.style.background; }
+                p.style.left=Math.random()*100+'%'; p.style.setProperty('--dur',(8+Math.random()*20)+'s'); p.style.setProperty('--opacity',(0.15+Math.random()*0.5)); p.style.animationDelay=Math.random()*20+'s';
+                container.appendChild(p);
+            }
+        }
+
+        document.addEventListener('keydown',function(e){
+            if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+            if(e.key==='1'||e.key==='a'||e.key==='A') castVote('closed',null);
+            else if(e.key==='2'||e.key==='b'||e.key==='B') castVote('open',null);
+        });
+
+        async function init() {
+            createParticles(); loadMyStats(); updateMyStatsDisplay();
+            await loadVoteCounts();
+            if(supabaseAvailable) subscribeToRealtime();
+            updateUI();
+            console.log('🧪 投票站已就绪！按 1/A 投闭卷，按 2/B 投开卷。');
+        }
+
+        init();
+        document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') loadVoteCounts(); });
+        setInterval(()=>{ if(document.visibilityState==='visible') loadVoteCounts(); },30000);
+    </script>
+</body>
+</html>
